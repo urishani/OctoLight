@@ -9,22 +9,25 @@ import RPi.GPIO as GPIO
 GPIO.setmode(GPIO.BOARD)
 GPIO.setwarnings(False)
 
+
 class OctoLightPlugin(
-		octoprint.plugin.StartupPlugin,
-		octoprint.plugin.TemplatePlugin,
-		octoprint.plugin.SimpleApiPlugin,
-		octoprint.plugin.SettingsPlugin
-	):
-
+	octoprint.plugin.StartupPlugin,
+	octoprint.plugin.TemplatePlugin,
+	octoprint.plugin.SimpleApiPlugin,
+	octoprint.plugin.SettingsPlugin,
+	octoprint.plugin.RestartNeedingPlugin
+):
 	light_state = False
-
+	fan_state = false
 
 	def get_settings_defaults(self):
 		return dict(
-			light_pin = 13,
-			inverted_output = False
+			light_pin=13,
+			fan_pin=15,
+			inverted_light_output=False,
+			inverted_fan_output=False
 		)
-	
+
 	def get_template_configs(self):
 		return [
 			dict(type="navbar", custom_bindings=False),
@@ -33,38 +36,69 @@ class OctoLightPlugin(
 
 	def on_after_startup(self):
 		self.light_state = False
+		self.fan_state = False
 		self._logger.info("--------------------------------------------")
 		self._logger.info("OctoLight started, listening for GET request")
-		self._logger.info("Light pin: {}, inverted_input: {}".format(
+		self._logger.info("Light: pin: {}, inverted_light_input: {}".format(
 			self._settings.get(["light_pin"]),
-			self._settings.get(["inverted_output"])
+			self._settings.get(["inverted_light_output"])
 		))
-		#self._logger.info(self._settings.get(["light_pin"]))
+		self._logger.info("Fan: pin: {}, inverted_input: {}".format(
+			self._settings.get(["fan_pin"]),
+			self._settings.get(["inverted_fan_output"])
+		))
 		self._logger.info("--------------------------------------------")
 
 		# Setting the default state of pin
 		GPIO.setup(int(self._settings.get(["light_pin"])), GPIO.OUT)
-		if bool(self._settings.get(["inverted_output"])):
+		if bool(self._settings.get(["inverted_light_output"])):
 			GPIO.output(int(self._settings.get(["light_pin"])), GPIO.HIGH)
 		else:
 			GPIO.output(int(self._settings.get(["light_pin"])), GPIO.LOW)
 
-	
+		GPIO.setup(int(self._settings.get(["fan_pin"])), GPIO.OUT)
+		if bool(self._settings.get(["inverted_fan_output"])):
+			GPIO.output(int(self._settings.get(["fan_pin"])), GPIO.HIGH)
+		else:
+			GPIO.output(int(self._settings.get(["fan_pin"])), GPIO.LOW)
+
 	def on_api_get(self, request):
-		GPIO.setup(int(self._settings.get(["light_pin"])), GPIO.OUT)
-		self.light_state = not self.light_state
-		#self._logger.info(self._settings.get(["light_pin"]))
-		if bool(self.light_state)^bool(self._settings.get(["inverted_output"])):
-			GPIO.output(int(self._settings.get(["light_pin"])), GPIO.HIGH)
-		else:
-			GPIO.output(int(self._settings.get(["light_pin"])), GPIO.LOW)
+		# Sets the GPIO every time, if user changed it in the settings.
+		if request == "octolight":
+			GPIO.setup(int(self._settings.get(["light_pin"])), GPIO.OUT)
 
-		self._logger.info("Got request. Light state: {}".format(
-			self.light_state
-		))
+			self.light_state = not self.light_state
+
+			# Sets the light state depending on the inverted output setting (XOR)
+			if self.light_state ^ self._settings.get(["inverted_light_output"]):
+				GPIO.output(int(self._settings.get(["light_pin"])), GPIO.HIGH)
+			else:
+				GPIO.output(int(self._settings.get(["light_pin"])), GPIO.LOW)
+
+			self._logger.info("Got request. Light state: {}".format(
+				self.light_state
+			))
+		elif request == "octofan":
+			GPIO.setup(int(self._settings.get(["fan_pin"])), GPIO.OUT)
+
+			self.fan_state = not self.fan_state
+
+			# Sets the light state depending on the inverted output setting (XOR)
+			if self.fan_state ^ self._settings.get(["inverted_fan_output"]):
+				GPIO.output(int(self._settings.get(["fan_pin"])), GPIO.HIGH)
+			else:
+				GPIO.output(int(self._settings.get(["fan_pin"])), GPIO.LOW)
+
+			self._logger.info("Got request. Fan state: {}".format(
+				self.fan_state
+			))
+		else:
+			self._logger.info("Got incorrect request for: {}".format(
+				request
+			))
 
 		return flask.jsonify(status="ok")
-	
+
 	def get_update_information(self):
 		return dict(
 			octolight=dict(
@@ -79,6 +113,7 @@ class OctoLightPlugin(
 				pip="https://github.com/gigibu5/OctoLight/archive/{target}.zip"
 			)
 		)
+
 
 __plugin_pythoncompat__ = ">=2.7,<4"
 __plugin_implementation__ = OctoLightPlugin()
