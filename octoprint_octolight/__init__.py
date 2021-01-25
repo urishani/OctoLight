@@ -22,8 +22,8 @@ class OctoLightPlugin(
 
 	def get_settings_defaults(self):
 		return dict(
-			light_pin=13,
-			fan_pin=15,
+			light_pin=12,
+			fan_pin=16,
 			inverted_light_output=False,
 			inverted_fan_output=False
 		)
