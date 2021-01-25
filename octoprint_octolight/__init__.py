@@ -18,7 +18,7 @@ class OctoLightPlugin(
 	octoprint.plugin.RestartNeedingPlugin
 ):
 	light_state = False
-	fan_state = false
+	fan_state = False
 
 	def get_settings_defaults(self):
 		return dict(
